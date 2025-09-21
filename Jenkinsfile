@@ -1,39 +1,61 @@
 pipeline {
     agent any
 
+    environment {
+        BACKEND_IMAGE = "loaner-backend"
+        FRONTEND_IMAGE = "loaner-frontend"
+    }
+
     stages {
-        stage('Get Code') {
+
+        stage('Checkout Code') {
             steps {
-                git 'https://github.com/gunshot-1001/Loaner.git'
+                git branch: 'main', url: 'https://github.com/gunshot-1001/Loaner.git'
             }
         }
 
-        stage('Build Backend') {
+        stage('Build Backend Docker Image') {
             steps {
                 dir('backend') {
-                    sh 'docker build -t loaner-backend .'
+                    echo "Building backend Docker image..."
+                    bat 'docker build -t %BACKEND_IMAGE% .'
                 }
             }
         }
 
-        stage('Build Frontend') {
+        stage('Build Frontend Docker Image') {
             steps {
                 dir('frontend') {
-                    sh 'docker build -t loaner-frontend .'
+                    echo "Building frontend Docker image..."
+                    bat 'docker build -t %FRONTEND_IMAGE% .'
                 }
+            }
+        }
+
+        stage('Stop Old Containers') {
+            steps {
+                echo "Stopping old containers if they exist..."
+                bat 'docker stop loaner-backend || exit 0'
+                bat 'docker stop loaner-frontend || exit 0'
+                bat 'docker rm loaner-backend || exit 0'
+                bat 'docker rm loaner-frontend || exit 0'
             }
         }
 
         stage('Run Containers') {
             steps {
-                sh 'docker stop loaner-backend || true'
-                sh 'docker stop loaner-frontend || true'
-                sh 'docker rm loaner-backend || true'
-                sh 'docker rm loaner-frontend || true'
-
-                sh 'docker run -d --name loaner-backend -p 5000:5000 loaner-backend'
-                sh 'docker run -d --name loaner-frontend -p 3000:3000 loaner-frontend'
+                echo "Running new containers..."
+                bat 'docker run -d --name loaner-backend -p 5000:5000 %BACKEND_IMAGE%'
+                bat 'docker run -d --name loaner-frontend -p 3000:80 %FRONTEND_IMAGE%'
             }
+        }
+
+    }
+
+    post {
+        always {
+            echo "Cleaning up unused Docker resources..."
+            bat 'docker system prune -f'
         }
     }
 }
